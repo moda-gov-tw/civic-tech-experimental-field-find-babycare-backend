@@ -17,6 +17,7 @@ use App\Http\Controllers\V1\ApplicationInfantDocumentController;
 use App\Http\Controllers\V1\DayCareApplicationController;
 use App\Http\Controllers\V1\DayCareController;
 use App\Http\Controllers\V1\DayCareMemberController;
+use App\Http\Controllers\V1\UserController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -31,6 +32,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/user', [UserController::class, 'index'])->name('user.index');
+
     Route::prefix('/administrative-groups')->group(function () {
         Route::get('/', [AdministrativeGroupController::class, 'index'])->name('administrative-groups.index');
         Route::get('/{group}', [AdministrativeGroupController::class, 'show'])->name('administrative-groups.show');

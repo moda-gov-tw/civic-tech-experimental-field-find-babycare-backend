@@ -47,6 +47,8 @@ class AdministrativeGroupController extends Controller
         ]);
 
         $group->update($validated);
+
+        return new AdministrativeGroupResource($group);
     }
 
     public function destroy(AdministrativeGroup $group)
@@ -54,5 +56,7 @@ class AdministrativeGroupController extends Controller
         $this->authorize('delete', $group);
 
         $group->delete();
+
+        return response()->noContent();
     }
 }

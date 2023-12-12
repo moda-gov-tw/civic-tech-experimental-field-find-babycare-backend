@@ -6,23 +6,22 @@ use App\Models\DayCare;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\deleteJson;
-use function Pest\Laravel\getJson;
-use function Pest\Laravel\postJson;
-use function PHPUnit\Framework\assertEquals;
+use function PHPUnit\Framework\assertTrue;
 
 describe('index', function () {
-  test("super users can see day cares", function () {
+  test("super users can see all day cares", function () {
     $group = AdministrativeGroup::factory()->create();
 
     $dayCares = DayCare::factory()->hasAttached($group)->count(2)->create();
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
-
-    getJson(route('administrative-groups.day-cares.index', $group))
-      ->assertOk();
+    actingAs($superUser)
+      ->getJson(route('administrative-groups.day-cares.index', $group))
+      ->assertOk()
+      ->assertJson([
+        'data' => $dayCares->map->only('id')->toArray()
+      ]);
   });
 
   test("members can see day cares", function () {
@@ -34,10 +33,12 @@ describe('index', function () {
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
-    getJson(route('administrative-groups.day-cares.index', $group))
-      ->assertOk();
+    actingAs($member)
+      ->getJson(route('administrative-groups.day-cares.index', $group))
+      ->assertOk()
+      ->assertJson([
+        'data' => $dayCares->map->only('id')->toArray()
+      ]);
   });
 
   test("users can't see day cares", function () {
@@ -45,10 +46,10 @@ describe('index', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    getJson(route('administrative-groups.day-cares.index', $group))
-      ->assertForbidden();
+    actingAs($user)
+      ->getJson(route('administrative-groups.day-cares.index', $group))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -60,16 +61,14 @@ describe('store', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    actingAs($superUser)
+      ->postJson(route('administrative-groups.day-cares.store', $group), [
+        'day_care_id' => $dayCare->id
+      ])
+      ->assertCreated()
+      ->assertJsonPath('data.id', $dayCare->id);
 
-    postJson(route('administrative-groups.day-cares.store', $group), [
-      'day_care_id' => $dayCare->id
-    ])->assertCreated();
-
-    assertEquals(
-      [$dayCare->id],
-      $group->dayCares()->get()->pluck('id')->toArray()
-    );
+    assertTrue($group->dayCares()->where('id', $dayCare->id)->exists());
   });
 
   test("members can't add day cares", function () {
@@ -79,10 +78,12 @@ describe('store', function () {
       'role' => AdministrativeGroupMemberRole::Administrator
     ])->create();
 
-    actingAs($member);
+    actingAs($member)
+      ->postJson(route('administrative-groups.day-cares.store', $group))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    postJson(route('administrative-groups.day-cares.store', $group))
-      ->assertForbidden();
+    assertTrue($group->dayCares()->doesntExist());
   });
 
   test("users can't add day cares", function () {
@@ -90,10 +91,12 @@ describe('store', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
+    actingAs($user)
+      ->postJson(route('administrative-groups.day-cares.store', $group))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    postJson(route('administrative-groups.day-cares.store', $group))
-      ->assertForbidden();
+    assertTrue($group->dayCares()->doesntExist());
   });
 });
 
@@ -105,10 +108,10 @@ describe('show', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
-
-    getJson(route('administrative-groups.day-cares.show', [$group, $dayCare]))
-      ->assertOk();
+    actingAs($superUser)
+      ->getJson(route('administrative-groups.day-cares.show', [$group, $dayCare]))
+      ->assertOk()
+      ->assertJsonPath('data.id', $dayCare->id);
   });
 
   test("members can see day care", function () {
@@ -120,10 +123,10 @@ describe('show', function () {
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
-    getJson(route('administrative-groups.day-cares.show', [$group, $dayCare]))
-      ->assertOk();
+    actingAs($member)
+      ->getJson(route('administrative-groups.day-cares.show', [$group, $dayCare]))
+      ->assertOk()
+      ->assertJsonPath('data.id', $dayCare->id);
   });
 
   test("users can't see day care", function () {
@@ -133,10 +136,10 @@ describe('show', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    getJson(route('administrative-groups.day-cares.show', [$group, $dayCare]))
-      ->assertForbidden();
+    actingAs($user)
+      ->getJson(route('administrative-groups.day-cares.show', [$group, $dayCare]))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -148,10 +151,11 @@ describe('destroy', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    actingAs($superUser)
+      ->deleteJson(route('administrative-groups.day-cares.destroy', [$group, $dayCare]))
+      ->assertNoContent();
 
-    deleteJson(route('administrative-groups.day-cares.destroy', [$group, $dayCare]))
-      ->assertOk();
+    assertTrue($group->dayCares()->where('id', $dayCare->id)->doesntExist());
   });
 
   test("members can't remove day care", function () {
@@ -163,10 +167,12 @@ describe('destroy', function () {
       'role' => AdministrativeGroupMemberRole::Administrator
     ])->create();
 
-    actingAs($member);
+    actingAs($member)
+      ->deleteJson(route('administrative-groups.day-cares.destroy', [$group, $dayCare]))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    deleteJson(route('administrative-groups.day-cares.destroy', [$group, $dayCare]))
-      ->assertForbidden();
+    assertTrue($group->dayCares()->where('id', $dayCare->id)->exists());
   });
 
   test("users can't remove day care", function () {
@@ -176,9 +182,11 @@ describe('destroy', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
+    actingAs($user)
+      ->deleteJson(route('administrative-groups.day-cares.destroy', [$group, $dayCare]))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    deleteJson(route('administrative-groups.day-cares.destroy', [$group, $dayCare]))
-      ->assertForbidden();
+    assertTrue($group->dayCares()->where('id', $dayCare->id)->exists());
   });
 });

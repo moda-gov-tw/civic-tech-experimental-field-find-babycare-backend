@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\ApplicationStatus;
+use App\Models\Contact;
 use App\Models\DayCare;
 use App\Models\Infant;
 use App\Models\User;
@@ -22,7 +23,8 @@ class ApplicationFactory extends Factory
             'user_id' => User::factory(),
             'day_care_id' => DayCare::factory(),
             'infant_id' => Infant::factory(),
-            'status' => ApplicationStatus::Submitted
+            'status' => ApplicationStatus::Submitted,
+            'contact_id' => Contact::factory()
         ];
     }
 }

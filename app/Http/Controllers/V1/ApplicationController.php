@@ -31,6 +31,8 @@ class ApplicationController extends Controller
         $validated = $request->validate([]);
 
         $application->update($validated);
+
+        return new ApplicationResource($application);
     }
 
     public function destroy(Application $application)
@@ -38,6 +40,8 @@ class ApplicationController extends Controller
         $this->authorize('delete', $application);
 
         $application->delete();
+
+        return response()->noContent();
     }
 
     public function withdraw(Application $application)

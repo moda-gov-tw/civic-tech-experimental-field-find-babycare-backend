@@ -8,8 +8,10 @@ use App\Models\User;
 use Illuminate\Http\UploadedFile;
 
 use function Pest\Laravel\actingAs;
+use function Pest\Laravel\assertModelExists;
 use function Pest\Laravel\assertModelMissing;
 use function PHPUnit\Framework\assertFalse;
+use function PHPUnit\Framework\assertTrue;
 
 describe('store', function () {
   test("owner can create documents", function () {
@@ -27,7 +29,21 @@ describe('store', function () {
         'type' => ApplicationDayCareDocumentType::ReservedSpotQualificationProof,
         'file' => $file
       ])
-      ->assertCreated();
+      ->assertCreated()
+      ->assertJson([
+        'data' => [
+          'day_care_id' => $dayCare->id,
+          'type' => ApplicationDayCareDocumentType::ReservedSpotQualificationProof->value,
+        ]
+      ]);
+
+    assertTrue(
+      $draft
+        ->dayCareDocuments()
+        ->where('day_care_id', $dayCare->id)
+        ->where('type', ApplicationDayCareDocumentType::ReservedSpotQualificationProof)
+        ->exists()
+    );
   });
 
   test("users can't create documents", function () {
@@ -45,10 +61,19 @@ describe('store', function () {
         'type' => ApplicationDayCareDocumentType::ReservedSpotQualificationProof,
         'file' => $file
       ])
-      ->assertForbidden();
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
+
+    assertTrue(
+      $draft
+        ->dayCareDocuments()
+        ->where('day_care_id', $dayCare->id)
+        ->where('type', ApplicationDayCareDocumentType::ReservedSpotQualificationProof)
+        ->doesntExist()
+    );
   });
 
-  test("documents should be for a draft's infant", function () {
+  test("documents should be for a draft's day care", function () {
     $user = User::factory()->create();
 
     $draft = ApplicationDraft::factory()->for($user)->create();
@@ -63,12 +88,21 @@ describe('store', function () {
         'type' => ApplicationDayCareDocumentType::ReservedSpotQualificationProof,
         'file' => $file
       ])
-      ->assertUnprocessable();
+      ->assertUnprocessable()
+      ->assertJsonMissingPath('data');
+
+    assertTrue(
+      $draft
+        ->dayCareDocuments()
+        ->where('day_care_id', $dayCare->id)
+        ->where('type', ApplicationDayCareDocumentType::ReservedSpotQualificationProof)
+        ->doesntExist()
+    );
   });
 });
 
 describe('show', function () {
-  test("application draft's owner can see documents", function () {
+  test("application draft's owner can see document", function () {
     $user = User::factory()->create();
 
     $draft = ApplicationDraft::factory()
@@ -85,7 +119,7 @@ describe('show', function () {
       ->assertHeader('Content-Type', 'image/jpeg');
   });
 
-  test("users can't see documents", function () {
+  test("users can't see document", function () {
     $draft = ApplicationDraft::factory()->create();
 
     $document = ApplicationDraftDayCareDocument::factory()
@@ -101,7 +135,7 @@ describe('show', function () {
 });
 
 describe('delete', function () {
-  test("owner can delete documents", function () {
+  test("owner can delete document", function () {
     $user = User::factory()->create();
 
     $draft = ApplicationDraft::factory()
@@ -114,13 +148,13 @@ describe('delete', function () {
 
     actingAs($user)
       ->deleteJson(route('application-drafts.day-care-documents.destroy', [$draft, $document]))
-      ->assertOk();
+      ->assertNoContent();
 
     assertModelMissing($document);
     assertFalse(Storage::exists($document->path));
   });
 
-  test("users can't delete documents", function () {
+  test("users can't delete document", function () {
     $draft = ApplicationDraft::factory()->create();
 
     $document = ApplicationDraftDayCareDocument::factory()
@@ -132,5 +166,8 @@ describe('delete', function () {
     actingAs($user)
       ->deleteJson(route('application-drafts.day-care-documents.destroy', [$draft, $document]))
       ->assertForbidden();
+
+    assertModelExists($document);
+    assertTrue(Storage::exists($document->path));
   });
 });

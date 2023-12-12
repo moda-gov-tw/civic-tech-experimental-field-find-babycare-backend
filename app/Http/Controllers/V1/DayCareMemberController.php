@@ -59,6 +59,8 @@ class DayCareMemberController extends Controller
         ]);
 
         $dayCare->members()->updateExistingPivot($member, $validated);
+
+        return new DayCareMemberResource($dayCare->members()->where('id', $member->id)->first());
     }
 
     public function destroy(DayCare $dayCare, User $member)
@@ -66,5 +68,7 @@ class DayCareMemberController extends Controller
         $this->authorize('delete', [DayCareMember::class, $dayCare]);
 
         $member->pivot->delete();
+
+        return response()->noContent();
     }
 }

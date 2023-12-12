@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InfantSex;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,11 +14,16 @@ class Infant extends Model
     use HasFactory;
 
     protected $fillable = [
+        'sex',
         'name',
         'id_number',
         'dob',
         'medical_conditions',
         'address_id'
+    ];
+
+    protected $casts = [
+        'sex' => InfantSex::class
     ];
 
     public function address(): BelongsTo

@@ -2,62 +2,62 @@
 
 use App\Enums\AdministrativeGroupMemberRole;
 use App\Models\AdministrativeGroup;
-use App\Models\AdministrativeGroupMember;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\deleteJson;
-use function Pest\Laravel\getJson;
-use function Pest\Laravel\patchJson;
-use function Pest\Laravel\postJson;
 use function PHPUnit\Framework\assertEquals;
-use function PHPUnit\Framework\assertNotNull;
-use function PHPUnit\Framework\assertNull;
+use function PHPUnit\Framework\assertTrue;
 
 describe('index', function () {
   test('super users can get members', function () {
     $group = AdministrativeGroup::factory()->create();
 
-    AdministrativeGroupMember::factory()->for($group)->count(2)->create();
+    User::factory()->count(2)->hasAttached($group, [
+      'role' => AdministrativeGroupMemberRole::Contributor
+    ])->create();
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
-
-    getJson(route('administrative-groups.members.index', $group))
+    actingAs($superUser)
+      ->getJson(route('administrative-groups.members.index', $group))
       ->assertOk()
       ->assertJson([
-        'data' => $group->members()->get()->only('id', 'name', 'email', 'role')->toArray()
+        'data' => $group->members()->get()->only('id')->toArray()
       ]);
   });
 
   test("members can get members", function () {
     $group = AdministrativeGroup::factory()->create();
 
-    AdministrativeGroupMember::factory()->for($group)->count(2)->create();
+    User::factory()->count(2)->hasAttached($group, [
+      'role' => AdministrativeGroupMemberRole::Contributor
+    ])->create();
 
     $contributor = User::factory()->hasAttached($group, [
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
-    actingAs($contributor);
-
-    getJson(route('administrative-groups.members.index', $group))
+    actingAs($contributor)
+      ->getJson(route('administrative-groups.members.index', $group))
       ->assertOk()
       ->assertJson([
-        'data' => $group->members()->get()->only('id', 'name', 'email', 'role')->toArray()
+        'data' => $group->members()->get()->only('id')->toArray()
       ]);
   });
 
   test("users can't get members", function () {
     $group = AdministrativeGroup::factory()->create();
 
+    User::factory()->count(2)->hasAttached($group, [
+      'role' => AdministrativeGroupMemberRole::Contributor
+    ])->create();
+
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    getJson(route('administrative-groups.members.index', $group))
-      ->assertForbidden();
+    actingAs($user)
+      ->getJson(route('administrative-groups.members.index', $group))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -69,18 +69,19 @@ describe('store', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    actingAs($superUser)
+      ->postJson(route('administrative-groups.members.store', $group), [
+        'email' => $userToAdd->email,
+        'role' => AdministrativeGroupMemberRole::Contributor
+      ])
+      ->assertCreated()
+      ->assertJsonPath('data.id', $userToAdd->id);
 
-    postJson(route('administrative-groups.members.store', $group), [
-      'email' => $userToAdd->email,
-      'role' => AdministrativeGroupMemberRole::Contributor
-    ])->assertCreated();
-
-    assertNotNull(
+    assertTrue(
       $group->members()
-        ->wherePivot('user_id', $userToAdd->id)
+        ->where('id', $userToAdd->id)
         ->wherePivot('role', AdministrativeGroupMemberRole::Contributor)
-        ->first()
+        ->exists()
     );
   });
 
@@ -93,43 +94,66 @@ describe('store', function () {
       'role' => AdministrativeGroupMemberRole::Administrator
     ])->create();
 
-    actingAs($administrator);
+    actingAs($administrator)
+      ->postJson(route('administrative-groups.members.store', $group), [
+        'email' => $userToAdd->email,
+        'role' => AdministrativeGroupMemberRole::Contributor
+      ])
+      ->assertCreated()
+      ->assertJsonPath('data.id', $userToAdd->id);
 
-    postJson(route('administrative-groups.members.store', $group), [
-      'email' => $userToAdd->email,
-      'role' => AdministrativeGroupMemberRole::Contributor
-    ])->assertCreated();
-
-    assertNotNull(
+    assertTrue(
       $group->members()
-        ->wherePivot('user_id', $userToAdd->id)
+        ->where('id', $userToAdd->id)
         ->wherePivot('role', AdministrativeGroupMemberRole::Contributor)
-        ->first()
+        ->exists()
     );
   });
 
   test("contributors can't add members", function () {
     $group = AdministrativeGroup::factory()->create();
 
+    $userToAdd = User::factory()->create();
+
     $contributor = User::factory()->hasAttached($group, [
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
-    actingAs($contributor);
+    actingAs($contributor)
+      ->postJson(route('administrative-groups.members.store', $group), [
+        'email' => $userToAdd->email,
+        'role' => AdministrativeGroupMemberRole::Contributor
+      ])
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    postJson(route('administrative-groups.members.store', $group))
-      ->assertForbidden();
+    assertTrue(
+      $group->members()
+        ->where('id', $userToAdd->id)
+        ->doesntExist()
+    );
   });
 
   test("users can't add members", function () {
     $group = AdministrativeGroup::factory()->create();
 
+    $userToAdd = User::factory()->create();
+
     $user = User::factory()->create();
 
-    actingAs($user);
+    actingAs($user)
+      ->postJson(route('administrative-groups.members.store', $group), [
+        'email' => $userToAdd->email,
+        'role' => AdministrativeGroupMemberRole::Contributor
+      ])
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    postJson(route('administrative-groups.members.store', $group))
-      ->assertForbidden();
+    assertTrue(
+      $group->members()
+        ->where('id', $userToAdd->id)
+        ->doesntExist()
+    );
   });
 
   test("can't add member with a non existing email", function () {
@@ -137,12 +161,21 @@ describe('store', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    $email = 'nonexisting@email.com';
 
-    postJson(route('administrative-groups.members.store', $group), [
-      'email' => 'nonexisting@email.com',
-      'role' => AdministrativeGroupMemberRole::Contributor
-    ])->assertUnprocessable();
+    actingAs($superUser)
+      ->postJson(route('administrative-groups.members.store', $group), [
+        'email' => $email,
+        'role' => AdministrativeGroupMemberRole::Contributor
+      ])
+      ->assertUnprocessable()
+      ->assertJsonMissingPath('data');
+
+    assertTrue(
+      $group->members()
+        ->where('email', $email)
+        ->doesntExist()
+    );
   });
 
   test("can't create member with an invalid role", function () {
@@ -152,12 +185,19 @@ describe('store', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    actingAs($superUser)
+      ->postJson(route('administrative-groups.members.store', $group), [
+        'email' => $userToInvite->email,
+        'role' => 'invalid-role'
+      ])
+      ->assertUnprocessable()
+      ->assertJsonMissingPath('data');
 
-    postJson(route('administrative-groups.members.store', $group), [
-      'email' => $userToInvite->email,
-      'role' => 'invalid-role'
-    ])->assertUnprocessable();
+    assertTrue(
+      $group->members()
+        ->where('id', $userToInvite->id)
+        ->doesntExist()
+    );
   });
 });
 
@@ -171,11 +211,10 @@ describe('show', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
-
-    getJson(route('administrative-groups.members.show', [$group, $member]))
+    actingAs($superUser)
+      ->getJson(route('administrative-groups.members.show', [$group, $member]))
       ->assertOk()
-      ->assertJson(['data' => $member->only('id')]);
+      ->assertJsonPath('data.id', $member->id);
   });
 
   test('members can get member', function () {
@@ -189,11 +228,10 @@ describe('show', function () {
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
-    getJson(route('administrative-groups.members.show', [$group, $memberToShow]))
+    actingAs($member)
+      ->getJson(route('administrative-groups.members.show', [$group, $memberToShow]))
       ->assertOk()
-      ->assertJson(['data' => $memberToShow->only('id')]);
+      ->assertJsonPath('data.id', $memberToShow->id);
   });
 
   test("users can't get members", function () {
@@ -205,10 +243,10 @@ describe('show', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    getJson(route('administrative-groups.members.show', [$group, $member]))
-      ->assertForbidden();
+    actingAs($user)
+      ->getJson(route('administrative-groups.members.show', [$group, $member]))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -222,15 +260,20 @@ describe('update', function () {
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
-    actingAs($superUser);
+    $role = AdministrativeGroupMemberRole::Administrator;
 
-    patchJson(route('administrative-groups.members.update', [$group, $memberToUpdate]), [
-      'role' => AdministrativeGroupMemberRole::Administrator
-    ])->assertOk();
+    actingAs($superUser)
+      ->patchJson(route('administrative-groups.members.update', [$group, $memberToUpdate]), [
+        'role' => $role
+      ])
+      ->assertOk()
+      ->assertJsonPath('data.role', $role->value);
 
     assertEquals(
-      AdministrativeGroupMemberRole::Administrator,
-      $group->members()->where('id', $memberToUpdate->id)->first()->pivot->role
+      $role,
+      $group->members()
+        ->where('id', $memberToUpdate->id)
+        ->first()->pivot->role
     );
   });
 
@@ -245,15 +288,20 @@ describe('update', function () {
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
-    actingAs($administrator);
+    $role = AdministrativeGroupMemberRole::Administrator;
 
-    patchJson(route('administrative-groups.members.update', [$group, $memberToUpdate]), [
-      'role' => AdministrativeGroupMemberRole::Administrator
-    ])->assertOk();
+    actingAs($administrator)
+      ->patchJson(route('administrative-groups.members.update', [$group, $memberToUpdate]), [
+        'role' => AdministrativeGroupMemberRole::Administrator
+      ])
+      ->assertOk()
+      ->assertJsonPath('data.role', $role->value);
 
     assertEquals(
-      AdministrativeGroupMemberRole::Administrator,
-      $group->members()->where('id', $memberToUpdate->id)->first()->pivot->role
+      $role,
+      $group->members()
+        ->where('id', $memberToUpdate->id)
+        ->first()->pivot->role
     );
   });
 
@@ -264,15 +312,25 @@ describe('update', function () {
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
+    $role = AdministrativeGroupMemberRole::Contributor;
+
     $memberToUpdate = User::factory()->hasAttached($group, [
-      'role' => AdministrativeGroupMemberRole::Contributor
+      'role' => $role
     ])->create();
 
-    actingAs($contributor);
+    actingAs($contributor)
+      ->patchJson(route('administrative-groups.members.update', [$group, $memberToUpdate]), [
+        'role' => AdministrativeGroupMemberRole::Administrator
+      ])
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    patchJson(route('administrative-groups.members.update', [$group, $memberToUpdate]), [
-      'role' => AdministrativeGroupMemberRole::Administrator
-    ])->assertForbidden();
+    assertEquals(
+      $role,
+      $group->members()
+        ->where('id', $memberToUpdate->id)
+        ->first()->pivot->role
+    );
   });
 
   test("users can't update members", function () {
@@ -280,15 +338,25 @@ describe('update', function () {
 
     $user = User::factory()->create();
 
+    $role = AdministrativeGroupMemberRole::Contributor;
+
     $memberToUpdate = User::factory()->hasAttached($group, [
-      'role' => AdministrativeGroupMemberRole::Contributor
+      'role' => $role
     ])->create();
 
-    actingAs($user);
+    actingAs($user)
+      ->patchJson(route('administrative-groups.members.update', [$group, $memberToUpdate]), [
+        'role' => AdministrativeGroupMemberRole::Administrator
+      ])
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    patchJson(route('administrative-groups.members.update', [$group, $memberToUpdate]), [
-      'role' => AdministrativeGroupMemberRole::Administrator
-    ])->assertForbidden();
+    assertEquals(
+      $role,
+      $group->members()
+        ->where('id', $memberToUpdate->id)
+        ->first()->pivot->role
+    );
   });
 });
 
@@ -296,60 +364,70 @@ describe('destroy', function () {
   test('super users can delete members', function () {
     $group = AdministrativeGroup::factory()->create();
 
-    $member = AdministrativeGroupMember::factory()->for($group)->create();
+    $member = User::factory()->hasAttached($group, [
+      'role' => AdministrativeGroupMemberRole::Contributor
+    ])->create();
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    actingAs($superUser)
+      ->deleteJson(route('administrative-groups.members.destroy', [$group, $member]))
+      ->assertNoContent();
 
-    deleteJson(route('administrative-groups.members.destroy', [$group, $member->user_id]))
-      ->assertOk();
-
-    assertNull($group->members()->where('id', $member->id)->first());
+    assertTrue($group->members()->where('id', $member->id)->doesntExist());
   });
 
   test('administrators can delete members', function () {
     $group = AdministrativeGroup::factory()->create();
 
-    $member = AdministrativeGroupMember::factory()->for($group)->create();
+    $member = User::factory()->hasAttached($group, [
+      'role' => AdministrativeGroupMemberRole::Contributor
+    ])->create();
 
     $administrator = User::factory()->hasAttached($group, [
       'role' => AdministrativeGroupMemberRole::Administrator
     ])->create();
 
-    actingAs($administrator);
+    actingAs($administrator)
+      ->deleteJson(route('administrative-groups.members.destroy', [$group, $member]))
+      ->assertNoContent();
 
-    deleteJson(route('administrative-groups.members.destroy', [$group, $member->user_id]))
-      ->assertOk();
-
-    assertNull($group->members()->where('id', $member->id)->first());
+    assertTrue($group->members()->where('id', $member->id)->doesntExist());
   });
 
   test("contributors can't delete members", function () {
     $group = AdministrativeGroup::factory()->create();
 
-    $member = AdministrativeGroupMember::factory()->for($group)->create();
+    $member = User::factory()->hasAttached($group, [
+      'role' => AdministrativeGroupMemberRole::Contributor
+    ])->create();
 
     $contributor = User::factory()->hasAttached($group, [
       'role' => AdministrativeGroupMemberRole::Contributor
     ])->create();
 
-    actingAs($contributor);
+    actingAs($contributor)
+      ->deleteJson(route('administrative-groups.members.destroy', [$group, $member]))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    deleteJson(route('administrative-groups.members.destroy', [$group, $member->user_id]))
-      ->assertForbidden();
+    assertTrue($group->members()->where('id', $member->id)->exists());
   });
 
   test("users can't delete members", function () {
     $group = AdministrativeGroup::factory()->create();
 
-    $member = AdministrativeGroupMember::factory()->for($group)->create();
+    $member = User::factory()->hasAttached($group, [
+      'role' => AdministrativeGroupMemberRole::Contributor
+    ])->create();
 
     $user = User::factory()->create();
 
-    actingAs($user);
+    actingAs($user)
+      ->deleteJson(route('administrative-groups.members.destroy', [$group, $member]))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    deleteJson(route('administrative-groups.members.destroy', [$group, $member->user_id]))
-      ->assertForbidden();
+    assertTrue($group->members()->where('id', $member->id)->exists());
   });
 });

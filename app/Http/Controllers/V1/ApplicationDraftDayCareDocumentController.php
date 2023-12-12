@@ -57,5 +57,7 @@ class ApplicationDraftDayCareDocumentController extends Controller
     Storage::delete($dayCareDocument->path);
 
     $dayCareDocument->delete();
+
+    return response()->noContent();
   }
 }

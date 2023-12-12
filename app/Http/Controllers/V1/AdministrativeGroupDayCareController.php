@@ -50,5 +50,7 @@ class AdministrativeGroupDayCareController extends Controller
     $this->authorize('delete', [AdministrativeGroupDayCare::class, $group]);
 
     $dayCare->pivot->delete();
+
+    return response()->noContent();
   }
 }

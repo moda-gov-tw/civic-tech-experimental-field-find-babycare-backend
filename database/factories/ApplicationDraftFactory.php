@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Contact;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -16,7 +17,8 @@ class ApplicationDraftFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::factory()
+            'user_id' => User::factory(),
+            'contact_id' => Contact::factory()
         ];
     }
 }

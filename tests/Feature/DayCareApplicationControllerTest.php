@@ -7,8 +7,6 @@ use App\Models\DayCare;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\getJson;
-use function Pest\Laravel\postJson;
 use function PHPUnit\Framework\assertEquals;
 
 describe('index', function () {
@@ -21,11 +19,12 @@ describe('index', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
-    getJson(route('day-cares.applications.index', $dayCare))
+    actingAs($member)
+      ->getJson(route('day-cares.applications.index', $dayCare))
       ->assertOk()
-      ->assertJson(['data' => $applications->only('id')->toArray()]);
+      ->assertJson([
+        'data' => $applications->only('id')->toArray()
+      ]);
   });
 
   test("users can't see the day care's applications", function () {
@@ -33,10 +32,10 @@ describe('index', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    getJson(route('day-cares.applications.index', $dayCare))
-      ->assertForbidden();
+    actingAs($user)
+      ->getJson(route('day-cares.applications.index', $dayCare))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -50,11 +49,10 @@ describe('show', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
-    getJson(route('day-cares.applications.show', [$dayCare, $application]))
+    actingAs($member)
+      ->getJson(route('day-cares.applications.show', [$dayCare, $application]))
       ->assertOk()
-      ->assertJson(['data' => $application->only('id')]);
+      ->assertJsonPath('data.id', $application->id);
   });
 
   test("users can't see application", function () {
@@ -64,10 +62,10 @@ describe('show', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    getJson(route('day-cares.applications.show', [$dayCare, $application]))
-      ->assertForbidden();
+    actingAs($user)
+      ->getJson(route('day-cares.applications.show', [$dayCare, $application]))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -81,9 +79,8 @@ describe('return', function () {
 
     $application = Application::factory()->for($dayCare)->create();
 
-    actingAs($member);
-
-    postJson(route('day-cares.applications.return', [$dayCare, $application]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.return', [$dayCare, $application]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::ApplicationReturned, $application->refresh()->status);
@@ -100,9 +97,8 @@ describe('return', function () {
       'status' => ApplicationStatus::Registered
     ]);
 
-    actingAs($member);
-
-    postJson(route('day-cares.applications.return', [$dayCare, $application]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.return', [$dayCare, $application]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::RegistrationReturned, $application->refresh()->status);
@@ -115,8 +111,6 @@ describe('return', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
     $statuses = array_diff(ApplicationStatus::values(), [
       ApplicationStatus::Submitted->value,
       ApplicationStatus::Registered->value
@@ -127,8 +121,11 @@ describe('return', function () {
         'status' => $status
       ]);
 
-      postJson(route('day-cares.applications.return', [$dayCare, $application]))
+      actingAs($member)
+        ->postJson(route('day-cares.applications.return', [$dayCare, $application]))
         ->assertForbidden();
+
+      assertEquals($status, $application->refresh()->status->value);
     }
   });
 
@@ -141,10 +138,11 @@ describe('return', function () {
       'status' => ApplicationStatus::Registered
     ]);
 
-    actingAs($user);
-
-    postJson(route('day-cares.applications.return', [$dayCare, $application]))
+    actingAs($user)
+      ->postJson(route('day-cares.applications.return', [$dayCare, $application]))
       ->assertForbidden();
+
+    assertEquals(ApplicationStatus::Registered, $application->refresh()->status);
   });
 
   test("users can't return application", function () {
@@ -156,10 +154,11 @@ describe('return', function () {
       'status' => ApplicationStatus::Registered
     ]);
 
-    actingAs($user);
-
-    postJson(route('day-cares.applications.return', [$dayCare, $application]))
+    actingAs($user)
+      ->postJson(route('day-cares.applications.return', [$dayCare, $application]))
       ->assertForbidden();
+
+    assertEquals(ApplicationStatus::Registered, $application->refresh()->status);
   });
 });
 
@@ -173,9 +172,8 @@ describe('approve', function () {
 
     $application = Application::factory()->for($dayCare)->create();
 
-    actingAs($member);
-
-    postJson(route('day-cares.applications.approve', [$dayCare, $application]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.approve', [$dayCare, $application]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::WaitlistApproved, $application->refresh()->status);
@@ -188,8 +186,6 @@ describe('approve', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
     $statuses = array_diff(ApplicationStatus::values(), [ApplicationStatus::Submitted->value]);
 
     foreach ($statuses as $status) {
@@ -197,8 +193,11 @@ describe('approve', function () {
         'status' => $status
       ]);
 
-      postJson(route('day-cares.applications.approve', [$dayCare, $application]))
+      actingAs($member)
+        ->postJson(route('day-cares.applications.approve', [$dayCare, $application]))
         ->assertForbidden();
+
+      assertEquals($status, $application->refresh()->status->value);
     }
   });
 
@@ -209,11 +208,10 @@ describe('approve', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
     $raffleApplication = Application::factory()->for($dayCare)->create();
 
-    postJson(route('day-cares.applications.approve', [$dayCare, $raffleApplication]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.approve', [$dayCare, $raffleApplication]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::RaffleApproved, $raffleApplication->refresh()->status);
@@ -222,7 +220,8 @@ describe('approve', function () {
 
     $waitlistApplication = Application::factory()->for($dayCare)->create();
 
-    postJson(route('day-cares.applications.approve', [$dayCare, $waitlistApplication]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.approve', [$dayCare, $waitlistApplication]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::WaitlistApproved, $waitlistApplication->refresh()->status);
@@ -235,10 +234,11 @@ describe('approve', function () {
 
     $application = Application::factory()->for($user)->for($dayCare)->create();
 
-    actingAs($user);
-
-    postJson(route('day-cares.applications.approve', [$dayCare, $application]))
+    actingAs($user)
+      ->postJson(route('day-cares.applications.approve', [$dayCare, $application]))
       ->assertForbidden();
+
+    assertEquals(ApplicationStatus::Submitted, $application->refresh()->status);
   });
 
   test("users can't approve application", function () {
@@ -248,10 +248,11 @@ describe('approve', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    postJson(route('day-cares.applications.approve', [$dayCare, $application]))
+    actingAs($user)
+      ->postJson(route('day-cares.applications.approve', [$dayCare, $application]))
       ->assertForbidden();
+
+    assertEquals(ApplicationStatus::Submitted, $application->refresh()->status);
   });
 });
 
@@ -267,9 +268,8 @@ describe('accept', function () {
       'status' => ApplicationStatus::WaitlistApproved
     ]);
 
-    actingAs($member);
-
-    postJson(route('day-cares.applications.accept', [$dayCare, $application]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.accept', [$dayCare, $application]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::Accepted, $application->refresh()->status);
@@ -286,9 +286,8 @@ describe('accept', function () {
       'status' => ApplicationStatus::RaffleApproved
     ]);
 
-    actingAs($member);
-
-    postJson(route('day-cares.applications.accept', [$dayCare, $application]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.accept', [$dayCare, $application]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::Accepted, $application->refresh()->status);
@@ -301,8 +300,6 @@ describe('accept', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
     $statuses = array_diff(ApplicationStatus::values(), [
       ApplicationStatus::RaffleApproved->value,
       ApplicationStatus::WaitlistApproved->value
@@ -313,8 +310,11 @@ describe('accept', function () {
         'status' => $status
       ]);
 
-      postJson(route('day-cares.applications.accept', [$dayCare, $application]))
+      actingAs($member)
+        ->postJson(route('day-cares.applications.accept', [$dayCare, $application]))
         ->assertForbidden();
+
+      assertEquals($status, $application->refresh()->status->value);
     }
   });
 
@@ -327,10 +327,11 @@ describe('accept', function () {
       'status' => ApplicationStatus::WaitlistApproved
     ]);
 
-    actingAs($user);
-
-    postJson(route('day-cares.applications.accept', [$dayCare, $application]))
+    actingAs($user)
+      ->postJson(route('day-cares.applications.accept', [$dayCare, $application]))
       ->assertForbidden();
+
+    assertEquals(ApplicationStatus::WaitlistApproved, $application->refresh()->status);
   });
 
   test("users can't accept application", function () {
@@ -342,10 +343,11 @@ describe('accept', function () {
       'status' => ApplicationStatus::WaitlistApproved
     ]);
 
-    actingAs($user);
-
-    postJson(route('day-cares.applications.accept', [$dayCare, $application]))
+    actingAs($user)
+      ->postJson(route('day-cares.applications.accept', [$dayCare, $application]))
       ->assertForbidden();
+
+    assertEquals(ApplicationStatus::WaitlistApproved, $application->refresh()->status);
   });
 });
 
@@ -361,9 +363,8 @@ describe('reject', function () {
       'status' => ApplicationStatus::Registered
     ]);
 
-    actingAs($member);
-
-    postJson(route('day-cares.applications.reject', [$dayCare, $application]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.reject', [$dayCare, $application]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::Rejected, $application->refresh()->status);
@@ -380,9 +381,8 @@ describe('reject', function () {
       'status' => ApplicationStatus::WaitlistApproved
     ]);
 
-    actingAs($member);
-
-    postJson(route('day-cares.applications.reject', [$dayCare, $application]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.reject', [$dayCare, $application]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::Rejected, $application->refresh()->status);
@@ -399,9 +399,8 @@ describe('reject', function () {
       'status' => ApplicationStatus::RaffleApproved
     ]);
 
-    actingAs($member);
-
-    postJson(route('day-cares.applications.reject', [$dayCare, $application]))
+    actingAs($member)
+      ->postJson(route('day-cares.applications.reject', [$dayCare, $application]))
       ->assertOk();
 
     assertEquals(ApplicationStatus::Rejected, $application->refresh()->status);
@@ -414,8 +413,6 @@ describe('reject', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
     $statuses = array_diff(ApplicationStatus::values(), [
       ApplicationStatus::Registered->value,
       ApplicationStatus::RaffleApproved->value,
@@ -427,8 +424,11 @@ describe('reject', function () {
         'status' => $status
       ]);
 
-      postJson(route('day-cares.applications.reject', [$dayCare, $application]))
+      actingAs($member)
+        ->postJson(route('day-cares.applications.reject', [$dayCare, $application]))
         ->assertForbidden();
+
+      assertEquals($status, $application->refresh()->status->value);
     }
   });
 
@@ -441,10 +441,11 @@ describe('reject', function () {
       'status' => ApplicationStatus::Registered
     ]);
 
-    actingAs($user);
-
-    postJson(route('day-cares.applications.reject', [$dayCare, $application]))
+    actingAs($user)
+      ->postJson(route('day-cares.applications.reject', [$dayCare, $application]))
       ->assertForbidden();
+
+    assertEquals(ApplicationStatus::Registered, $application->refresh()->status);
   });
 
   test("users can't accept applications", function () {
@@ -456,10 +457,11 @@ describe('reject', function () {
       'status' => ApplicationStatus::Registered
     ]);
 
-    actingAs($user);
-
-    postJson(route('day-cares.applications.reject', [$dayCare, $application]))
+    actingAs($user)
+      ->postJson(route('day-cares.applications.reject', [$dayCare, $application]))
       ->assertForbidden();
+
+    assertEquals(ApplicationStatus::Registered, $application->refresh()->status);
   });
 });
 

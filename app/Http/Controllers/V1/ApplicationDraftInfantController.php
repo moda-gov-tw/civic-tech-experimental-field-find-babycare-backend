@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\V1;
 
+use App\Enums\InfantSex;
 use App\Enums\InfantStatusType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\ApplicationDraftInfantResource;
@@ -30,6 +31,7 @@ class ApplicationDraftInfantController extends Controller
     $this->authorize('create', [ApplicationDraftInfant::class, $draft]);
 
     $validated = $request->validate([
+      'sex' => ['required', new Enum(InfantSex::class)],
       'name' => 'required|string',
       'id_number' => 'required|string',
       'dob' => 'required|date',
@@ -79,6 +81,7 @@ class ApplicationDraftInfantController extends Controller
     $this->authorize('update', [$infant->pivot, $draft]);
 
     $validated = $request->validate([
+      'sex' => ['sometimes', new Enum(InfantSex::class)],
       'name' => 'sometimes|string',
       'id_number' => 'sometimes|string',
       'dob' => 'sometimes|date',

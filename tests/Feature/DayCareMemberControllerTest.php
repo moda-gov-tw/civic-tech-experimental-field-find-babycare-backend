@@ -6,58 +6,59 @@ use App\Models\DayCareMember;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\deleteJson;
-use function Pest\Laravel\getJson;
-use function Pest\Laravel\patchJson;
-use function Pest\Laravel\postJson;
 use function PHPUnit\Framework\assertEquals;
-use function PHPUnit\Framework\assertNotNull;
-use function PHPUnit\Framework\assertNull;
+use function PHPUnit\Framework\assertTrue;
 
 describe('index', function () {
   test('super users can get members', function () {
     $dayCare = DayCare::factory()->create();
 
-    DayCareMember::factory()->for($dayCare)->count(2)->create();
+    $members = User::factory()->hasAttached($dayCare, [
+      'role' => DayCareMemberRole::Contributor
+    ])->count(2)->create();
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
-
-    getJson(route('day-cares.members.index', $dayCare))
+    actingAs($superUser)
+      ->getJson(route('day-cares.members.index', $dayCare))
       ->assertOk()
       ->assertJson([
-        'data' => $dayCare->members()->get()->only('id', 'name', 'email', 'role')->toArray()
+        'data' => $members->only('id')->toArray()
       ]);
   });
 
   test("members can get members", function () {
     $dayCare = DayCare::factory()->create();
 
-    DayCareMember::factory()->for($dayCare)->count(2)->create();
+    User::factory()->hasAttached($dayCare, [
+      'role' => DayCareMemberRole::Contributor
+    ])->count(2)->create();
 
     $contributor = User::factory()->hasAttached($dayCare, [
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($contributor);
-
-    getJson(route('day-cares.members.index', $dayCare))
+    actingAs($contributor)
+      ->getJson(route('day-cares.members.index', $dayCare))
       ->assertOk()
       ->assertJson([
-        'data' => $dayCare->members()->get()->only('id', 'name', 'email', 'role')->toArray()
+        'data' => $dayCare->members()->get()->only('id')->toArray()
       ]);
   });
 
   test("users can't get members", function () {
     $dayCare = DayCare::factory()->create();
 
+    User::factory()->hasAttached($dayCare, [
+      'role' => DayCareMemberRole::Contributor
+    ])->count(2)->create();
+
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    getJson(route('day-cares.members.index', $dayCare))
-      ->assertForbidden();
+    actingAs($user)
+      ->getJson(route('day-cares.members.index', $dayCare))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -69,18 +70,19 @@ describe('store', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    actingAs($superUser)
+      ->postJson(route('day-cares.members.store', $dayCare), [
+        'email' => $userToAdd->email,
+        'role' => DayCareMemberRole::Contributor
+      ])
+      ->assertCreated()
+      ->assertJsonPath('data.id', $userToAdd->id);
 
-    postJson(route('day-cares.members.store', $dayCare), [
-      'email' => $userToAdd->email,
-      'role' => DayCareMemberRole::Contributor
-    ])->assertCreated();
-
-    assertNotNull(
+    assertTrue(
       $dayCare->members()
-        ->wherePivot('user_id', $userToAdd->id)
+        ->where('id', $userToAdd->id)
         ->wherePivot('role', DayCareMemberRole::Contributor)
-        ->first()
+        ->exists()
     );
   });
 
@@ -93,43 +95,66 @@ describe('store', function () {
       'role' => DayCareMemberRole::Administrator
     ])->create();
 
-    actingAs($administrator);
+    actingAs($administrator)
+      ->postJson(route('day-cares.members.store', $dayCare), [
+        'email' => $userToAdd->email,
+        'role' => DayCareMemberRole::Contributor
+      ])
+      ->assertCreated()
+      ->assertJsonPath('data.id', $userToAdd->id);
 
-    postJson(route('day-cares.members.store', $dayCare), [
-      'email' => $userToAdd->email,
-      'role' => DayCareMemberRole::Contributor
-    ])->assertCreated();
-
-    assertNotNull(
+    assertTrue(
       $dayCare->members()
-        ->wherePivot('user_id', $userToAdd->id)
+        ->where('id', $userToAdd->id)
         ->wherePivot('role', DayCareMemberRole::Contributor)
-        ->first()
+        ->exists()
     );
   });
 
   test("contributors can't add members", function () {
     $dayCare = DayCare::factory()->create();
 
+    $userToAdd = User::factory()->create();
+
     $contributor = User::factory()->hasAttached($dayCare, [
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($contributor);
+    actingAs($contributor)
+      ->postJson(route('day-cares.members.store', $dayCare), [
+        'email' => $userToAdd->email,
+        'role' => DayCareMemberRole::Contributor
+      ])
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    postJson(route('day-cares.members.store', $dayCare))
-      ->assertForbidden();
+    assertTrue(
+      $dayCare->members()
+        ->where('id', $userToAdd->id)
+        ->doesntExist()
+    );
   });
 
   test("users can't add members", function () {
     $dayCare = DayCare::factory()->create();
 
+    $userToAdd = User::factory()->create();
+
     $user = User::factory()->create();
 
-    actingAs($user);
+    actingAs($user)
+      ->postJson(route('day-cares.members.store', $dayCare), [
+        'email' => $userToAdd->email,
+        'role' => DayCareMemberRole::Contributor
+      ])
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    postJson(route('day-cares.members.store', $dayCare))
-      ->assertForbidden();
+    assertTrue(
+      $dayCare->members()
+        ->where('id', $userToAdd->id)
+        ->doesntExist()
+    );
   });
 
   test("can't add member with a non existing email", function () {
@@ -137,12 +162,21 @@ describe('store', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    $email = 'nonexisting@email.com';
 
-    postJson(route('day-cares.members.store', $dayCare), [
-      'email' => 'nonexisting@email.com',
-      'role' => DayCareMemberRole::Contributor
-    ])->assertUnprocessable();
+    actingAs($superUser)
+      ->postJson(route('day-cares.members.store', $dayCare), [
+        'email' => $email,
+        'role' => DayCareMemberRole::Contributor
+      ])
+      ->assertUnprocessable()
+      ->assertJsonMissingPath('data');
+
+    assertTrue(
+      $dayCare->members()
+        ->where('email', $email)
+        ->doesntExist()
+    );
   });
 
   test("can't create member with an invalid role", function () {
@@ -152,12 +186,19 @@ describe('store', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    actingAs($superUser)
+      ->postJson(route('day-cares.members.store', $dayCare), [
+        'email' => $userToInvite->email,
+        'role' => 'invalid-role'
+      ])
+      ->assertUnprocessable()
+      ->assertJsonMissingPath('data');
 
-    postJson(route('day-cares.members.store', $dayCare), [
-      'email' => $userToInvite->email,
-      'role' => 'invalid-role'
-    ])->assertUnprocessable();
+    assertTrue(
+      $dayCare->members()
+        ->where('id', $userToInvite->id)
+        ->doesntExist()
+    );
   });
 });
 
@@ -171,11 +212,10 @@ describe('show', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
-
-    getJson(route('day-cares.members.show', [$dayCare, $member]))
+    actingAs($superUser)
+      ->getJson(route('day-cares.members.show', [$dayCare, $member]))
       ->assertOk()
-      ->assertJson(['data' => $member->only('id')]);
+      ->assertJsonPath('data.id', $member->id);
   });
 
   test('members can get member', function () {
@@ -189,11 +229,10 @@ describe('show', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($member);
-
-    getJson(route('day-cares.members.show', [$dayCare, $memberToShow]))
+    actingAs($member)
+      ->getJson(route('day-cares.members.show', [$dayCare, $memberToShow]))
       ->assertOk()
-      ->assertJson(['data' => $memberToShow->only('id')]);
+      ->assertJsonPath('data.id', $memberToShow->id);
   });
 
   test("users can't get members", function () {
@@ -205,10 +244,10 @@ describe('show', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    getJson(route('day-cares.members.show', [$dayCare, $member]))
-      ->assertForbidden();
+    actingAs($user)
+      ->getJson(route('day-cares.members.show', [$dayCare, $member]))
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -222,14 +261,17 @@ describe('update', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($superUser);
+    $role = DayCareMemberRole::Administrator;
 
-    patchJson(route('day-cares.members.update', [$dayCare, $memberToUpdate]), [
-      'role' => DayCareMemberRole::Administrator
-    ])->assertOk();
+    actingAs($superUser)
+      ->patchJson(route('day-cares.members.update', [$dayCare, $memberToUpdate]), [
+        'role' => $role
+      ])
+      ->assertOk()
+      ->assertJsonPath('data.role', $role->value);
 
     assertEquals(
-      DayCareMemberRole::Administrator,
+      $role,
       $dayCare->members()->where('id', $memberToUpdate->id)->first()->pivot->role
     );
   });
@@ -245,14 +287,17 @@ describe('update', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($administrator);
+    $role = DayCareMemberRole::Administrator;
 
-    patchJson(route('day-cares.members.update', [$dayCare, $memberToUpdate]), [
-      'role' => DayCareMemberRole::Administrator
-    ])->assertOk();
+    actingAs($administrator)
+      ->patchJson(route('day-cares.members.update', [$dayCare, $memberToUpdate]), [
+        'role' => $role
+      ])
+      ->assertOk()
+      ->assertJsonPath('data.role', $role->value);
 
     assertEquals(
-      DayCareMemberRole::Administrator,
+      $role,
       $dayCare->members()->where('id', $memberToUpdate->id)->first()->pivot->role
     );
   });
@@ -264,15 +309,23 @@ describe('update', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
+    $role = DayCareMemberRole::Contributor;
+
     $memberToUpdate = User::factory()->hasAttached($dayCare, [
-      'role' => DayCareMemberRole::Contributor
+      'role' => $role
     ])->create();
 
-    actingAs($contributor);
+    actingAs($contributor)
+      ->patchJson(route('day-cares.members.update', [$dayCare, $memberToUpdate]), [
+        'role' => DayCareMemberRole::Administrator
+      ])
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    patchJson(route('day-cares.members.update', [$dayCare, $memberToUpdate]), [
-      'role' => DayCareMemberRole::Administrator
-    ])->assertForbidden();
+    assertEquals(
+      $role,
+      $dayCare->members()->where('id', $memberToUpdate->id)->first()->pivot->role
+    );
   });
 
   test("users can't update members", function () {
@@ -280,15 +333,23 @@ describe('update', function () {
 
     $user = User::factory()->create();
 
+    $role = DayCareMemberRole::Contributor;
+
     $memberToUpdate = User::factory()->hasAttached($dayCare, [
-      'role' => DayCareMemberRole::Contributor
+      'role' => $role
     ])->create();
 
-    actingAs($user);
+    actingAs($user)
+      ->patchJson(route('day-cares.members.update', [$dayCare, $memberToUpdate]), [
+        'role' => DayCareMemberRole::Administrator
+      ])
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
-    patchJson(route('day-cares.members.update', [$dayCare, $memberToUpdate]), [
-      'role' => DayCareMemberRole::Administrator
-    ])->assertForbidden();
+    assertEquals(
+      $role,
+      $dayCare->members()->where('id', $memberToUpdate->id)->first()->pivot->role
+    );
   });
 });
 
@@ -300,12 +361,15 @@ describe('destroy', function () {
 
     $superUser = User::factory()->superUser()->create();
 
-    actingAs($superUser);
+    actingAs($superUser)
+      ->deleteJson(route('day-cares.members.destroy', [$dayCare, $member->user_id]))
+      ->assertNoContent();
 
-    deleteJson(route('day-cares.members.destroy', [$dayCare, $member->user_id]))
-      ->assertOk();
-
-    assertNull($dayCare->members()->where('id', $member->id)->first());
+    assertTrue(
+      $dayCare->members()
+        ->where('id', $member->id)
+        ->doesntExist()
+    );
   });
 
   test('administrators can delete members', function () {
@@ -317,12 +381,15 @@ describe('destroy', function () {
       'role' => DayCareMemberRole::Administrator
     ])->create();
 
-    actingAs($administrator);
+    actingAs($administrator)
+      ->deleteJson(route('day-cares.members.destroy', [$dayCare, $member->user_id]))
+      ->assertNoContent();
 
-    deleteJson(route('day-cares.members.destroy', [$dayCare, $member->user_id]))
-      ->assertOk();
-
-    assertNull($dayCare->members()->where('id', $member->id)->first());
+    assertTrue(
+      $dayCare->members()
+        ->where('id', $member->id)
+        ->doesntExist()
+    );
   });
 
   test("contributors can't delete members", function () {
@@ -334,9 +401,8 @@ describe('destroy', function () {
       'role' => DayCareMemberRole::Contributor
     ])->create();
 
-    actingAs($contributor);
-
-    deleteJson(route('day-cares.members.destroy', [$dayCare, $member->user_id]))
+    actingAs($contributor)
+      ->deleteJson(route('day-cares.members.destroy', [$dayCare, $member->user_id]))
       ->assertForbidden();
   });
 
@@ -347,9 +413,8 @@ describe('destroy', function () {
 
     $user = User::factory()->create();
 
-    actingAs($user);
-
-    deleteJson(route('day-cares.members.destroy', [$dayCare, $member->user_id]))
+    actingAs($user)
+      ->deleteJson(route('day-cares.members.destroy', [$dayCare, $member->user_id]))
       ->assertForbidden();
   });
 });

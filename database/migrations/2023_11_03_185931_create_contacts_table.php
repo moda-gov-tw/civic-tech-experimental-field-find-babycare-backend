@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('phone');
             $table->boolean('is_living_in_the_same_household');
-            $table->foreignIdFor(Address::class)->constrained();
+            $table->foreignIdFor(Address::class)->nullable()->constrained();
             $table->timestamps();
         });
     }

@@ -7,7 +7,6 @@ use App\Models\DayCare;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\postJson;
 use function PHPUnit\Framework\assertEquals;
 
 describe('withdraw', function () {
@@ -18,9 +17,8 @@ describe('withdraw', function () {
             'status' => ApplicationStatus::WaitlistApproved
         ]);
 
-        actingAs($user);
-
-        postJson(route('applications.withdraw', $application))
+        actingAs($user)
+            ->postJson(route('applications.withdraw', $application))
             ->assertOk();
 
         assertEquals(ApplicationStatus::Withdrew, $application->refresh()->status);
@@ -33,9 +31,8 @@ describe('withdraw', function () {
             'status' => ApplicationStatus::RaffleApproved
         ]);
 
-        actingAs($user);
-
-        postJson(route('applications.withdraw', $application))
+        actingAs($user)
+            ->postJson(route('applications.withdraw', $application))
             ->assertOk();
 
         assertEquals(ApplicationStatus::Withdrew, $application->refresh()->status);
@@ -43,8 +40,6 @@ describe('withdraw', function () {
 
     test("only waitlist or raffle approved applications can be withdrawn", function () {
         $user = User::factory()->create();
-
-        actingAs($user);
 
         $statuses = array_diff(ApplicationStatus::values(), [
             ApplicationStatus::RaffleApproved->value,
@@ -56,8 +51,11 @@ describe('withdraw', function () {
                 'status' => $status
             ]);
 
-            postJson(route('applications.withdraw', $application))
+            actingAs($user)
+                ->postJson(route('applications.withdraw', $application))
                 ->assertForbidden();
+
+            assertEquals($status, $application->refresh()->status->value);
         }
     });
 
@@ -68,29 +66,35 @@ describe('withdraw', function () {
             'role' => DayCareMemberRole::Contributor
         ])->create();
 
+        $status = ApplicationStatus::WaitlistApproved;
+
         $application = Application::factory()->for($dayCare)->create([
-            'status' => ApplicationStatus::WaitlistApproved
+            'status' => $status
         ]);
 
-        actingAs($member);
-
-        postJson(route('applications.withdraw', $application))
+        actingAs($member)
+            ->postJson(route('applications.withdraw', $application))
             ->assertForbidden();
+
+        assertEquals($status, $application->refresh()->status);
     });
 
     test("users can't withdraw applications", function () {
         $dayCare = DayCare::factory()->create();
 
+        $status = ApplicationStatus::WaitlistApproved;
+
         $application = Application::factory()->for($dayCare)->create([
-            'status' => ApplicationStatus::WaitlistApproved
+            'status' => $status
         ]);
 
         $user = User::factory()->create();
 
-        actingAs($user);
-
-        postJson(route('applications.withdraw', $application))
+        actingAs($user)
+            ->postJson(route('applications.withdraw', $application))
             ->assertForbidden();
+
+        assertEquals($status, $application->refresh()->status);
     });
 });
 
@@ -102,9 +106,8 @@ describe('forfeit', function () {
             'status' => ApplicationStatus::Accepted
         ]);
 
-        actingAs($user);
-
-        postJson(route('applications.forfeit', $application))
+        actingAs($user)
+            ->postJson(route('applications.forfeit', $application))
             ->assertOk();
 
         assertEquals(ApplicationStatus::Forfeited, $application->refresh()->status);
@@ -117,9 +120,8 @@ describe('forfeit', function () {
             'status' => ApplicationStatus::RegistrationReturned
         ]);
 
-        actingAs($user);
-
-        postJson(route('applications.forfeit', $application))
+        actingAs($user)
+            ->postJson(route('applications.forfeit', $application))
             ->assertOk();
 
         assertEquals(ApplicationStatus::Forfeited, $application->refresh()->status);
@@ -127,8 +129,6 @@ describe('forfeit', function () {
 
     test("only accepted or registration returned applications can be forfeited", function () {
         $user = User::factory()->create();
-
-        actingAs($user);
 
         $statuses = array_diff(ApplicationStatus::values(), [
             ApplicationStatus::Accepted->value,
@@ -140,8 +140,11 @@ describe('forfeit', function () {
                 'status' => $status
             ]);
 
-            postJson(route('applications.forfeit', $application))
+            actingAs($user)
+                ->postJson(route('applications.forfeit', $application))
                 ->assertForbidden();
+
+            assertEquals($status, $application->refresh()->status->value);
         }
     });
 
@@ -156,10 +159,11 @@ describe('forfeit', function () {
             'status' => ApplicationStatus::Accepted
         ]);
 
-        actingAs($member);
-
-        postJson(route('applications.forfeit', $application))
+        actingAs($member)
+            ->postJson(route('applications.forfeit', $application))
             ->assertForbidden();
+
+        assertEquals(ApplicationStatus::Accepted, $application->refresh()->status);
     });
 
     test("users can't forfeit applications", function () {
@@ -169,10 +173,11 @@ describe('forfeit', function () {
 
         $user = User::factory()->create();
 
-        actingAs($user);
-
-        postJson(route('applications.forfeit', $application))
+        actingAs($user)
+            ->postJson(route('applications.forfeit', $application))
             ->assertForbidden();
+
+        assertEquals(ApplicationStatus::Accepted, $application->refresh()->status);
     });
 });
 
@@ -184,9 +189,8 @@ describe('resubmit', function () {
             'status' => ApplicationStatus::ApplicationReturned
         ]);
 
-        actingAs($user);
-
-        postJson(route('applications.resubmit', $application))
+        actingAs($user)
+            ->postJson(route('applications.resubmit', $application))
             ->assertOk();
 
         assertEquals(ApplicationStatus::Submitted, $application->refresh()->status);
@@ -199,9 +203,8 @@ describe('resubmit', function () {
             'status' => ApplicationStatus::RegistrationReturned
         ]);
 
-        actingAs($user);
-
-        postJson(route('applications.resubmit', $application))
+        actingAs($user)
+            ->postJson(route('applications.resubmit', $application))
             ->assertOk();
 
         assertEquals(ApplicationStatus::Registered, $application->refresh()->status);
@@ -209,8 +212,6 @@ describe('resubmit', function () {
 
     test("only application returned or registration returned applications can be resubmitted", function () {
         $user = User::factory()->create();
-
-        actingAs($user);
 
         $statuses = array_diff(ApplicationStatus::values(), [
             ApplicationStatus::ApplicationReturned->value,
@@ -222,8 +223,11 @@ describe('resubmit', function () {
                 'status' => $status
             ]);
 
-            postJson(route('applications.resubmit', $application))
+            actingAs($user)
+                ->postJson(route('applications.resubmit', $application))
                 ->assertForbidden();
+
+            assertEquals($status, $application->refresh()->status->value);
         }
     });
 
@@ -238,10 +242,11 @@ describe('resubmit', function () {
             'status' => ApplicationStatus::ApplicationReturned
         ]);
 
-        actingAs($member);
-
-        postJson(route('applications.resubmit', $application))
+        actingAs($member)
+            ->postJson(route('applications.resubmit', $application))
             ->assertForbidden();
+
+        assertEquals(ApplicationStatus::ApplicationReturned, $application->refresh()->status);
     });
 
     test("users can't resubmit applications", function () {
@@ -251,10 +256,11 @@ describe('resubmit', function () {
 
         $user = User::factory()->create();
 
-        actingAs($user);
-
-        postJson(route('applications.resubmit', $application))
+        actingAs($user)
+            ->postJson(route('applications.resubmit', $application))
             ->assertForbidden();
+
+        assertEquals(ApplicationStatus::ApplicationReturned, $application->refresh()->status);
     });
 });
 

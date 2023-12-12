@@ -61,6 +61,8 @@ class AdministrativeGroupMemberController extends Controller
         ]);
 
         $group->members()->updateExistingPivot($member, $validated);
+
+        return new AdministrativeGroupMemberResource($group->members()->where('id', $member->id)->first());
     }
 
     public function destroy(AdministrativeGroup $group, User $member)
@@ -68,5 +70,7 @@ class AdministrativeGroupMemberController extends Controller
         $this->authorize('delete', [AdministrativeGroupMember::class, $group]);
 
         $member->pivot->delete();
+
+        return response()->noContent();
     }
 }

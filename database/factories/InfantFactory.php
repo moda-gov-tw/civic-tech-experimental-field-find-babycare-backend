@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\InfantSex;
 use App\Models\Address;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -16,6 +17,7 @@ class InfantFactory extends Factory
     public function definition(): array
     {
         return [
+            'sex' => fake()->randomElement(InfantSex::values()),
             'name' => fake()->name(),
             'id_number' => fake()->uuid(),
             'dob' => fake()->dateTimeBetween('-1 day'),

@@ -33,7 +33,8 @@ describe('index', function () {
 
     actingAs($user)
       ->getJson(route('application-drafts.contacts.index', $draft))
-      ->assertForbidden();
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -70,7 +71,8 @@ describe('store', function () {
 
     actingAs($user)
       ->postJson(route('application-drafts.contacts.store', $draft), [])
-      ->assertForbidden();
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
     assertTrue($draft->contacts()->doesntExist());
   });
@@ -99,7 +101,8 @@ describe('show', function () {
 
     actingAs($user)
       ->getJson(route('application-drafts.contacts.show', [$draft, $contact]))
-      ->assertForbidden();
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
   });
 });
 
@@ -138,7 +141,8 @@ describe('update', function () {
       ->patchJson(route('application-drafts.contacts.update', [$draft, $contact]), [
         'name' => 'New name',
       ])
-      ->assertForbidden();
+      ->assertForbidden()
+      ->assertJsonMissingPath('data');
 
     assertEquals($originalName, $contact->refresh()->name);
   });

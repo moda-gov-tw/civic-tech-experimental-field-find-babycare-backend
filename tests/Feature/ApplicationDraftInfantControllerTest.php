@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\InfantSex;
 use App\Enums\InfantStatusType;
 use App\Models\ApplicationDraft;
 use App\Models\Infant;
@@ -17,6 +18,7 @@ describe('store', function () {
       ->postJson(
         route('application-drafts.infants.store', $draft),
         [
+          'sex' => InfantSex::Female,
           'name' => 'Infant name',
           'id_number' => '123456789',
           'dob' => '2020-01-01',
@@ -27,7 +29,7 @@ describe('store', function () {
           ],
           'statuses' => [
             InfantStatusType::Aboriginal,
-            InfantStatusType::Adopted
+            InfantStatusType::Adoption
           ]
         ]
       )
@@ -123,7 +125,7 @@ describe('update', function () {
           'street' => 'New street'
         ],
         'statuses' => [
-          InfantStatusType::Adopted
+          InfantStatusType::Adoption
         ]
       ])
       ->assertOk();

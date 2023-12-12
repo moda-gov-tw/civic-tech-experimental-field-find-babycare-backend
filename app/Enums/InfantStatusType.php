@@ -8,11 +8,11 @@ enum InfantStatusType: string
 {
   use HasEnumUtilities;
 
-  case Disadvantaged = 'disadvantaged';
+  case DisadvantagedFamily = 'disadvantaged_family';
   case Challenged = 'challenged';
   case Aboriginal = 'aboriginal';
-  case UnderAgeParents = 'under-age-parents';
-  case BigFamily = 'big-family';
-  case Adopted = 'adopted';
+  case UnderAgeParents = 'under_age_parents';
+  case BigFamily = 'big_family';
+  case Adoption = 'adoption';
   case Immigrant = 'immigrant';
 }

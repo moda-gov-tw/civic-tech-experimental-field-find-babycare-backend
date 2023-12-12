@@ -26,7 +26,8 @@ describe('show', function () {
 
         actingAs($member)
             ->getJson(route('applications.documents.show', [$application, $document]))
-            ->assertOk();
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
     });
 
     test("application's owner can see application's documents", function () {
@@ -42,7 +43,8 @@ describe('show', function () {
 
         actingAs($user)
             ->getJson(route('applications.documents.show', [$application, $document]))
-            ->assertOk();
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
     });
 
     test("users can't see application's documents", function () {

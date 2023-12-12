@@ -18,7 +18,11 @@ class DayCareController extends Controller
     {
         $this->authorize('viewAny', DayCare::class);
 
-        return DayCareResource::collection($request->user()->dayCares()->paginate());
+        return DayCareResource::collection(
+            $request->user()->isSuperUser()
+                ? DayCare::paginate()
+                : $request->user()->dayCares()->paginate()
+        );
     }
 
     public function store(Request $request)
@@ -88,6 +92,8 @@ class DayCareController extends Controller
         ]);
 
         $dayCare->update($validated);
+
+        return new DayCareResource($dayCare);
     }
 
     public function destroy(DayCare $dayCare)
@@ -95,5 +101,7 @@ class DayCareController extends Controller
         $this->authorize('delete', $dayCare);
 
         $dayCare->delete();
+
+        return response()->noContent();
     }
 }
