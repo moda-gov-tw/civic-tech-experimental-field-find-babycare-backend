@@ -5,7 +5,7 @@ https://findbabycare.notion.site/Project-Wiki-bdff28bb5de4409db4f7842df8296807
 
 
 示範網站(僅為示範非正式報名平台)：
-https://findbabycare.notion.site/Project-Wiki-bdff28bb5de4409db4f7842df8296807
+https://www.findbabycare.com
 
 技術規格概要
 	
